@@ -22,6 +22,7 @@ GOLD = (241, 196, 15)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 SPRING_RED = (200, 0, 0)
+BULLET_COLOR = (50, 50, 50)
 
 # Physics
 GRAVITY = 0.6
@@ -30,14 +31,14 @@ FRICTION = 0.85
 MAX_SPEED = 7
 JUMP_FORCE = -14
 SPRING_FORCE = -24 
-LEVEL_WIDTH = 8000 # Reduced map size
+LEVEL_WIDTH = 8000 
 
 # --- Classes ---
 
 class Scenery:
     def __init__(self):
         self.elements = []
-        for i in range(25): # Reduced for smaller map
+        for i in range(25):
             self.elements.append({'type': 'mtn', 'x': i * 800 + random.randint(0, 400), 'w': random.randint(300, 600), 'h': random.randint(200, 400)})
             self.elements.append({'type': 'tree', 'x': i * 400 + random.randint(0, 300), 'h': random.randint(70, 120)})
             self.elements.append({'type': 'cloud', 'x': i * 350 + random.randint(0, 200), 'y': random.randint(40, 180)})
@@ -60,12 +61,80 @@ class Scenery:
                 pygame.draw.rect(screen, (101, 67, 33), (tx + 18, SCREEN_HEIGHT - 60 - e['h'], 14, e['h']))
                 pygame.draw.circle(screen, (34, 153, 84), (tx + 25, SCREEN_HEIGHT - 60 - e['h']), 40)
 
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, x, y, direction, owner_type="player"):
+        super().__init__()
+        self.image = pygame.Surface((15, 10), pygame.SRCALPHA)
+        pygame.draw.ellipse(self.image, BULLET_COLOR if owner_type == "player" else (255, 50, 50), (0, 0, 15, 10))
+        self.rect = self.image.get_rect(center=(x, y))
+        self.speed = 8 if owner_type == "player" else 3 
+        self.direction = direction 
+        self.owner_type = owner_type
+
+    def update(self):
+        self.rect.x += self.speed * self.direction
+        if self.rect.x < 0 or self.rect.x > LEVEL_WIDTH:
+            self.kill()
+
+class GunPowerUp(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((30, 20), pygame.SRCALPHA)
+        pygame.draw.rect(self.image, (50, 50, 50), (0, 5, 25, 10))
+        pygame.draw.rect(self.image, (50, 50, 50), (0, 10, 8, 10))
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.vel_y = 0
+
+    def update(self, solids):
+        self.vel_y += GRAVITY
+        self.rect.y += self.vel_y
+        hits = pygame.sprite.spritecollide(self, solids, False)
+        for b in hits:
+            if self.vel_y > 0:
+                self.rect.bottom = b.rect.top
+                self.vel_y = 0
+
+class Chest(pygame.sprite.Sprite):
+    """Reward on ground that needs a task (kill enemies) to open"""
+    def __init__(self, x, y, kills_needed=2):
+        super().__init__()
+        self.kills_needed = kills_needed
+        self.image = pygame.Surface((50, 40))
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.opened = False
+        self.draw_chest()
+
+    def draw_chest(self):
+        color = (139, 69, 19) if not self.opened else (100, 100, 100)
+        self.image.fill(color)
+        pygame.draw.rect(self.image, (218, 165, 32), (0, 0, 50, 40), 3) # Gold trim
+        if not self.opened:
+            font = pygame.font.SysFont("Arial", 18, bold=True)
+            txt = font.render(f"x{self.kills_needed}", True, WHITE)
+            self.image.blit(txt, (15, 10))
+
+    def on_bounce(self, player, game):
+        if not self.opened:
+            if player.kills >= self.kills_needed:
+                self.opened = True
+                self.draw_chest()
+                game.spawn_visual_coin(self.rect.centerx, self.rect.y - 40)
+                game.spawn_gun_powerup(self.rect.centerx - 15, self.rect.y - 40)
+                game.play_sound('win')
+            else:
+                game.play_sound('hit') # Warning sound
+
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
         self.width, self.height = 40, 52
-        self.frames_right = [self.create_mario_surface(False, f) for f in [0, 1, 2]]
-        self.frames_left = [self.create_mario_surface(True, f) for f in [0, 1, 2]]
+        # Normal Frames
+        self.frames_right = [self.create_mario_surface(False, f, False) for f in [0, 1, 2]]
+        self.frames_left = [self.create_mario_surface(True, f, False) for f in [0, 1, 2]]
+        # Gun Frames
+        self.gun_frames_right = [self.create_mario_surface(False, f, True) for f in [0, 1, 2]]
+        self.gun_frames_left = [self.create_mario_surface(True, f, True) for f in [0, 1, 2]]
+        
         self.image = self.frames_right[0]
         self.rect = self.image.get_rect()
         self.reset_pos()
@@ -73,18 +142,22 @@ class Player(pygame.sprite.Sprite):
         self.on_ground = False
         self.lives = 3
         self.score = 0
+        self.kills = 0
         self.is_dead = False
         self.death_timer = 0
         self.direction = "right"
         self.walk_frame = 0
         self.walk_timer = 0
+        self.has_gun = False
 
     def reset_pos(self):
         self.rect.x = 100
         self.rect.y = SCREEN_HEIGHT - 250
         self.vel_x, self.vel_y = 0, 0
+        self.has_gun = False
+        self.kills = 0
 
-    def create_mario_surface(self, flip, frame):
+    def create_mario_surface(self, flip, frame, with_gun):
         surf = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         pygame.draw.rect(surf, MARIO_RED, (10, 0, 25, 10)) 
         pygame.draw.rect(surf, MARIO_RED, (25 if flip else 5, 5, 12, 5)) 
@@ -104,12 +177,17 @@ class Player(pygame.sprite.Sprite):
         else:
             pygame.draw.rect(surf, lc, (5, 45, 10, 7))
             pygame.draw.rect(surf, lc, (18, 42, 10, 7))
+        
+        if with_gun:
+            gx = 0 if flip else 25
+            pygame.draw.rect(surf, (50, 50, 50), (gx, 30, 15, 5))
         return surf
 
-    def update(self, solids, game):
+    def update(self, solids, items, game):
         if self.is_dead:
             self.death_timer -= 1
-            self.rect.y += 8
+            self.rect.y += self.vel_y
+            self.vel_y += 0.5 # Falling speed while dead
             return
 
         keys = pygame.key.get_pressed()
@@ -129,20 +207,30 @@ class Player(pygame.sprite.Sprite):
         # Vertical
         self.rect.y += self.vel_y
         self.on_ground = False
+        
+        hits = pygame.sprite.spritecollide(self, items, False)
+        for b in hits:
+            if self.vel_y > 0 and self.rect.bottom < b.rect.centery + 15:
+                if hasattr(b, "on_bounce"): b.on_bounce(self, game)
+                self.rect.bottom = b.rect.top
+                self.vel_y = 0; self.on_ground = True
+            elif self.vel_y < 0:
+                self.rect.top = b.rect.bottom; self.vel_y = 0
+                if hasattr(b, "hit"): b.hit()
+
         hits = pygame.sprite.spritecollide(self, solids, False)
         for b in hits:
             if self.vel_y > 0 and self.rect.bottom < b.rect.centery + 15:
                 self.rect.bottom = b.rect.top
-                self.vel_y = 0
-                self.on_ground = True
+                self.vel_y = 0; self.on_ground = True
             elif self.vel_y < 0:
-                self.rect.top = b.rect.bottom
-                self.vel_y = 0
-                if hasattr(b, "hit"): b.hit()
+                self.rect.top = b.rect.bottom; self.vel_y = 0
 
         # Horizontal
         self.rect.x += self.vel_x
+        # Check both solids and items for horizontal collision
         hits = pygame.sprite.spritecollide(self, solids, False)
+        hits += pygame.sprite.spritecollide(self, items, False)
         for b in hits:
             if self.vel_x > 0: self.rect.right = b.rect.left
             elif self.vel_x < 0: self.rect.left = b.rect.right
@@ -154,47 +242,85 @@ class Player(pygame.sprite.Sprite):
                 self.walk_frame = (self.walk_frame % 2) + 1
                 self.walk_timer = 0
         else: self.walk_frame = 0
-        self.image = (self.frames_left if self.direction == "left" else self.frames_right)[self.walk_frame]
+        
+        if self.has_gun:
+            self.image = (self.gun_frames_left if self.direction == "left" else self.gun_frames_right)[self.walk_frame]
+        else:
+            self.image = (self.frames_left if self.direction == "left" else self.frames_right)[self.walk_frame]
 
-        if self.rect.y > SCREEN_HEIGHT: self.trigger_death(game)
+        if self.rect.y > SCREEN_HEIGHT + 100: self.trigger_death(game)
 
     def trigger_death(self, game):
         if not self.is_dead:
-            self.is_dead, self.death_timer = True, 80
+            self.is_dead, self.death_timer = True, 100
+            self.vel_y = -12 # Death pop
             self.lives -= 1
             game.play_sound('hit')
 
+    def shoot(self, game):
+        if self.has_gun and not self.is_dead:
+            d = 1 if self.direction == "right" else -1
+            game.bullets.add(Bullet(self.rect.centerx + 20*d, self.rect.centery + 5, d, "player"))
+            game.play_sound('shoot')
+
 class Goomba(pygame.sprite.Sprite):
-    def __init__(self, x, y, limit_left, limit_right):
+    def __init__(self, x, y, limit_left, limit_right, has_gun=False):
         super().__init__()
+        self.has_gun = has_gun
         self.image = pygame.Surface((40, 40), pygame.SRCALPHA)
-        pygame.draw.ellipse(self.image, (150, 75, 0), (0, 0, 40, 30))
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.dir = 1
+        self.last_drawn_dir = 0
+        self.l, self.r = limit_left, limit_right
+        self.vel_y = 0
+        self.shoot_timer = 0
+        self.redraw()
+
+    def redraw(self):
+        self.image.fill((0,0,0,0))
+        color = (100, 100, 150) if self.has_gun else (150, 75, 0)
+        pygame.draw.ellipse(self.image, color, (0, 0, 40, 30))
         pygame.draw.rect(self.image, (245, 222, 179), (10, 20, 20, 15))
         pygame.draw.circle(self.image, WHITE, (15, 10), 4); pygame.draw.circle(self.image, WHITE, (25, 10), 4)
         pygame.draw.circle(self.image, BLACK, (15, 10), 2); pygame.draw.circle(self.image, BLACK, (25, 10), 2)
-        self.rect = self.image.get_rect(topleft=(x, y))
-        self.dir = 1
-        self.l, self.r = limit_left, limit_right
-        self.vel_y = 0
+        if self.has_gun:
+            pygame.draw.rect(self.image, BLACK, (5, 5, 30, 5)) 
+            gx = 25 if self.dir > 0 else 0
+            pygame.draw.rect(self.image, (50, 50, 50), (gx, 20, 15, 5))
+        self.last_drawn_dir = self.dir
 
-    def update(self, solids):
+    def update(self, solids, game):
         self.vel_y += GRAVITY
         self.rect.y += self.vel_y
         hits = pygame.sprite.spritecollide(self, solids, False)
         for b in hits:
-            if self.vel_y > 0:
-                self.rect.bottom = b.rect.top
-                self.vel_y = 0
-        self.rect.x += 2 * self.dir
-        hits = pygame.sprite.spritecollide(self, solids, False)
-        if hits:
-            for b in hits:
-                if self.dir > 0: self.rect.right = b.rect.left
-                else: self.rect.left = b.rect.right
-                self.dir *= -1
-                break
-        if self.rect.x < self.l or self.rect.right > self.r:
-            self.dir *= -1
+            if self.vel_y > 0: self.rect.bottom = b.rect.top; self.vel_y = 0
+
+        # AI Behavior
+        dist_x = game.player.rect.centerx - self.rect.centerx
+        if self.has_gun and abs(dist_x) < 400: # Encounter range
+            # Face player
+            new_dir = 1 if dist_x > 0 else -1
+            if new_dir != self.dir:
+                self.dir = new_dir
+                self.redraw()
+            
+            # Fire
+            self.shoot_timer += 1
+            if self.shoot_timer > 90:
+                game.bullets.add(Bullet(self.rect.centerx + 20*self.dir, self.rect.centery, self.dir, "enemy"))
+                self.shoot_timer = 0
+        else:
+            # Normal patrol
+            self.rect.x += 2 * self.dir
+            if self.dir != self.last_drawn_dir: self.redraw()
+            hits = pygame.sprite.spritecollide(self, solids, False)
+            if hits:
+                for b in hits:
+                    if self.dir > 0: self.rect.right = b.rect.left
+                    else: self.rect.left = b.rect.right
+                    self.dir *= -1; break
+            if self.rect.x < self.l or self.rect.right > self.r: self.dir *= -1
 
 class Piranha(pygame.sprite.Sprite):
     def __init__(self, x, pipe_y):
@@ -206,45 +332,36 @@ class Piranha(pygame.sprite.Sprite):
         pygame.draw.rect(self.image, WHITE, (10, 30, 20, 6)) 
         self.rect = self.image.get_rect(midbottom=(x, pipe_y))
         self.base_y = pipe_y
-        self.timer = 0
-        self.state = "down" 
+        self.timer, self.state = 0, "down"
 
-    def is_dangerous(self):
-        return self.rect.bottom < self.base_y - 5
+    def is_dangerous(self): return self.rect.bottom < self.base_y - 5
 
     def update(self, player_x):
         self.timer += 1
         dist = abs(player_x - self.rect.centerx)
         if self.state == "down":
             self.rect.y = self.base_y 
-            if self.timer > 150 and dist > 120:
-                self.state = "up"; self.timer = 0
+            if self.timer > 150 and dist > 120: self.state = "up"; self.timer = 0
         elif self.state == "up":
-            if self.rect.bottom > self.base_y - 35: 
-                self.rect.y -= 2
+            if self.rect.bottom > self.base_y - 35: self.rect.y -= 2
             else:
                 if self.timer > 100: self.state = "returning"
         elif self.state == "returning":
-            if self.rect.bottom < self.base_y:
-                self.rect.y += 3
-            else:
-                self.state = "down"; self.timer = 0
+            if self.rect.bottom < self.base_y: self.rect.y += 3
+            else: self.state = "down"; self.timer = 0
 
 class Spring(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
         self.image = pygame.Surface((40, 40), pygame.SRCALPHA)
         pygame.draw.rect(self.image, BLACK, (5, 35, 30, 5)) 
-        for i in range(3):
-            pygame.draw.arc(self.image, SPRING_RED, (10, 10 + i*8, 20, 15), 0, 3.14, 3)
+        for i in range(3): pygame.draw.arc(self.image, SPRING_RED, (10, 10 + i*8, 20, 15), 0, 3.14, 3)
         pygame.draw.rect(self.image, SPRING_RED, (5, 5, 30, 5)) 
         self.rect = self.image.get_rect(topleft=(x, y))
 
     def update(self, player, game):
         if self.rect.colliderect(player.rect) and player.vel_y > 0 and player.rect.bottom < self.rect.centery + 10:
-            player.vel_y = SPRING_FORCE
-            player.on_ground = False
-            game.play_sound('jump')
+            player.vel_y = SPRING_FORCE; player.on_ground = False; game.play_sound('jump')
 
 class Tile(pygame.sprite.Sprite):
     def __init__(self, x, y, w, h, type="ground"):
@@ -252,32 +369,23 @@ class Tile(pygame.sprite.Sprite):
         self.image = pygame.Surface((w, h))
         self.rect = pygame.Rect(x, y, w, h)
         if type == "ground":
-            self.image.fill(MARIO_BROWN)
-            pygame.draw.rect(self.image, GRASS_GREEN, (0, 0, w, 10))
-            for _ in range(int(w*h/500)):
-                pygame.draw.rect(self.image, (100, 50, 10), (random.randint(0, w), random.randint(15, h), 3, 3))
+            self.image.fill(MARIO_BROWN); pygame.draw.rect(self.image, GRASS_GREEN, (0, 0, w, 10))
         elif type == "pipe":
-            self.image.fill(PIPE_GREEN)
-            pygame.draw.rect(self.image, WHITE, (5, 0, 5, h)) 
-            pygame.draw.rect(self.image, PIPE_DARK, (w-15, 0, 10, h)) 
-            pygame.draw.rect(self.image, BLACK, (0, 0, w, h), 2) 
-            pygame.draw.rect(self.image, PIPE_GREEN, (0, 0, w, 25))
-            pygame.draw.rect(self.image, BLACK, (0, 0, w, 25), 2)
+            self.image.fill(PIPE_GREEN); pygame.draw.rect(self.image, WHITE, (5, 0, 5, h)) 
+            pygame.draw.rect(self.image, PIPE_DARK, (w-15, 0, 10, h)); pygame.draw.rect(self.image, BLACK, (0, 0, w, h), 2) 
+            pygame.draw.rect(self.image, PIPE_GREEN, (0, 0, w, 25)); pygame.draw.rect(self.image, BLACK, (0, 0, w, 25), 2)
 
 class Block(pygame.sprite.Sprite):
     def __init__(self, x, y, type="brick", game=None):
         super().__init__()
-        self.game, self.type = game, type
-        self.image = pygame.Surface((40, 40))
-        self.rect = pygame.Rect(x, y, 40, 40)
-        self.used = False
+        self.game, self.type, self.image = game, type, pygame.Surface((40, 40))
+        self.rect, self.used = pygame.Rect(x, y, 40, 40), False
         self.draw_block()
 
     def draw_block(self):
         c = (200, 100, 50) if self.type == "brick" else GOLD
         if self.used: c = (100, 100, 100)
-        self.image.fill(c)
-        pygame.draw.rect(self.image, BLACK, (0, 0, 40, 40), 1)
+        self.image.fill(c); pygame.draw.rect(self.image, BLACK, (0, 0, 40, 40), 1)
         if self.type == "question" and not self.used:
             font = pygame.font.SysFont("Arial", 30, bold=True)
             txt = font.render("?", True, BLACK); self.image.blit(txt, (12, 5))
@@ -286,28 +394,19 @@ class Block(pygame.sprite.Sprite):
         if not self.used:
             self.used = True; self.draw_block()
             if self.type == "question":
-                if random.random() < 0.7:
-                    self.game.spawn_visual_coin(self.rect.x + 10, self.rect.y - 40)
-                    self.game.player.score += 100
-                else:
-                    self.game.spawn_enemy_from_block(self.rect.x, self.rect.y - 40)
+                r = random.random()
+                if r < 0.7: self.game.spawn_visual_coin(self.rect.x + 10, self.rect.y - 40); self.game.player.score += 100
+                elif r < 0.9: self.game.spawn_enemy_from_block(self.rect.x, self.rect.y - 40)
+                else: self.game.spawn_gun_powerup(self.rect.x + 5, self.rect.y - 40)
 
 class VisualCoin(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
-        self.image = pygame.Surface((20, 20), pygame.SRCALPHA)
-        pygame.draw.circle(self.image, GOLD, (10, 10), 10)
-        pygame.draw.circle(self.image, WHITE, (10, 10), 6, 1)
-        self.rect = self.image.get_rect(topleft=(x, y))
-        self.timer = 0
-        self.alpha = 255
-
+        self.image = pygame.Surface((20, 20), pygame.SRCALPHA); pygame.draw.circle(self.image, GOLD, (10, 10), 10)
+        self.rect, self.timer, self.alpha = self.image.get_rect(topleft=(x, y)), 0, 255
     def update(self):
-        self.rect.y -= 4
-        self.timer += 1
-        if self.timer > 15:
-            self.alpha = max(0, self.alpha - 15)
-            self.image.set_alpha(self.alpha)
+        self.rect.y -= 4; self.timer += 1
+        if self.timer > 15: self.alpha = max(0, self.alpha - 15); self.image.set_alpha(self.alpha)
         if self.timer > 30: self.kill()
 
 # --- Game ---
@@ -319,17 +418,16 @@ class Game:
         pygame.display.set_caption("Super Gemini Mario: World 1")
         self.clock = pygame.time.Clock(); self.font = pygame.font.SysFont("Arial", 28, bold=True)
         self.sounds = {}
-        for s in ['jump', 'coin', 'hit', 'win', 'powerup']:
+        for s in ['jump', 'coin', 'hit', 'win', 'powerup', 'shoot']:
             if os.path.exists(f"{s}.wav"): self.sounds[s] = pygame.mixer.Sound(f"{s}.wav")
         self.reset()
 
     def reset(self):
         self.player = Player(); self.scenery = Scenery()
-        self.solids = pygame.sprite.Group() 
-        self.enemies = pygame.sprite.Group()
-        self.pipe_enemies = pygame.sprite.Group()
-        self.springs = pygame.sprite.Group()
-        self.visuals = pygame.sprite.Group()
+        self.solids = pygame.sprite.Group(); self.enemies = pygame.sprite.Group()
+        self.pipe_enemies = pygame.sprite.Group(); self.springs = pygame.sprite.Group()
+        self.visuals = pygame.sprite.Group(); self.bullets = pygame.sprite.Group()
+        self.powerups = pygame.sprite.Group(); self.items = pygame.sprite.Group()
         self.camera_x = 0.0; self.game_over, self.won = False, False
         self.build_level()
 
@@ -337,31 +435,24 @@ class Game:
         curr_x = 0
         while curr_x < LEVEL_WIDTH:
             w = random.randint(800, 1500)
-            g = Tile(curr_x, SCREEN_HEIGHT - 60, w, 60, "ground")
-            self.solids.add(g)
-            if random.random() > 0.7:
-                self.springs.add(Spring(curr_x + 300, SCREEN_HEIGHT - 100))
+            g = Tile(curr_x, SCREEN_HEIGHT - 60, w, 60, "ground"); self.solids.add(g)
+            if random.random() > 0.7: self.items.add(Chest(curr_x + 200, SCREEN_HEIGHT - 100))
             if random.random() > 0.4:
                 px = curr_x + 500; ph = random.choice([80, 120])
                 p = Tile(px, SCREEN_HEIGHT - 60 - ph, 80, ph, "pipe"); self.solids.add(p)
                 self.pipe_enemies.add(Piranha(px + 40, SCREEN_HEIGHT - 60 - ph))
             bx = curr_x + 700
             for i in range(random.randint(2, 5)):
-                blk = Block(bx + i*80, 350, "question" if i%2==0 else "brick", self); self.solids.add(blk)
+                blk = Block(bx + i*80, 350, "question" if i%2==0 else "brick", self); self.items.add(blk)
             for _ in range(random.randint(1, 2)):
                 ex = curr_x + random.randint(200, w-200)
-                self.enemies.add(Goomba(ex, SCREEN_HEIGHT - 100, curr_x, curr_x + w))
+                self.enemies.add(Goomba(ex, SCREEN_HEIGHT - 100, curr_x, curr_x + w, has_gun=random.random()>0.6))
             curr_x += w + random.randint(150, 300)
         self.goal_rect = pygame.Rect(LEVEL_WIDTH - 400, 0, 10, SCREEN_HEIGHT)
 
-    def spawn_visual_coin(self, x, y): 
-        self.visuals.add(VisualCoin(x, y))
-        self.play_sound('coin')
-
-    def spawn_enemy_from_block(self, x, y): 
-        self.enemies.add(Goomba(x, y, x - 200, x + 200))
-        self.play_sound('powerup')
-
+    def spawn_visual_coin(self, x, y): self.visuals.add(VisualCoin(x, y)); self.play_sound('coin')
+    def spawn_enemy_from_block(self, x, y): self.enemies.add(Goomba(x, y, x - 200, x + 200)); self.play_sound('powerup')
+    def spawn_gun_powerup(self, x, y): self.powerups.add(GunPowerUp(x, y)); self.play_sound('powerup')
     def play_sound(self, name):
         if name in self.sounds: self.sounds[name].play()
 
@@ -371,24 +462,44 @@ class Game:
             if self.player.death_timer <= 0:
                 if self.player.lives > 0: self.player.reset_pos(); self.player.is_dead = False; self.camera_x = 0
                 else: self.game_over = True
-            else: self.player.update(self.solids, self)
+            else: self.player.update(self.solids, self.items, self)
             return
-        self.player.update(self.solids, self)
-        self.enemies.update(self.solids)
-        self.visuals.update()
+        self.player.update(self.solids, self.items, self)
+        self.enemies.update(self.solids, self)
+        self.visuals.update(); self.bullets.update(); self.powerups.update(self.solids)
         for s in self.springs: s.update(self.player, self)
         for p in self.pipe_enemies: p.update(self.player.rect.centerx)
         self.camera_x += (self.player.rect.centerx - SCREEN_WIDTH//2 - self.camera_x) * 0.1
         self.camera_x = max(0.0, min(self.camera_x, LEVEL_WIDTH - SCREEN_WIDTH))
+        for b in self.bullets:
+            # Bullet-Solid collision
+            if pygame.sprite.spritecollideany(b, self.solids):
+                b.kill(); continue
+
+            if b.owner_type == "player":
+                # Hit Goombas
+                hits = pygame.sprite.spritecollide(b, self.enemies, True)
+                if hits:
+                    for e in hits: self.spawn_visual_coin(e.rect.x, e.rect.y); self.player.kills += 1
+                    b.kill(); continue
+                
+                # Hit Piranha Plants
+                hits = pygame.sprite.spritecollide(b, self.pipe_enemies, True)
+                if hits:
+                    for p in hits: self.spawn_visual_coin(p.rect.x, p.rect.y); self.player.kills += 1
+                    b.kill(); continue
+
+            elif b.owner_type == "enemy":
+                if self.player.rect.colliderect(b.rect): self.player.trigger_death(self); b.kill()
+
         for e in self.enemies:
             if self.player.rect.colliderect(e.rect):
                 if self.player.vel_y > 0 and self.player.rect.bottom < e.rect.centery + 10:
-                    # KILL ENEMY EFFECT
-                    self.spawn_visual_coin(e.rect.x + 10, e.rect.y - 20)
-                    e.kill(); self.player.vel_y = -10; self.player.score += 200
+                    self.spawn_visual_coin(e.rect.x + 10, e.rect.y - 20); e.kill(); self.player.vel_y = -10; self.player.score += 200; self.player.kills += 1
                 else: self.player.trigger_death(self)
         for p in self.pipe_enemies:
             if self.player.rect.colliderect(p.rect) and p.is_dangerous(): self.player.trigger_death(self)
+        if pygame.sprite.spritecollide(self.player, self.powerups, True): self.player.has_gun = True; self.play_sound('powerup')
         if self.player.rect.colliderect(self.goal_rect): self.won = True; self.play_sound('win')
 
     def draw(self):
@@ -396,19 +507,21 @@ class Game:
         cx = int(self.camera_x)
         for p in self.pipe_enemies: self.screen.blit(p.image, (p.rect.x - cx, p.rect.y))
         for s in self.solids: self.screen.blit(s.image, (s.rect.x - cx, s.rect.y))
-        for s in self.springs: self.screen.blit(s.image, (s.rect.x - cx, s.rect.y))
+        for i in self.items: self.screen.blit(i.image, (i.rect.x - cx, i.rect.y))
         for e in self.enemies: self.screen.blit(e.image, (e.rect.x - cx, e.rect.y))
         for v in self.visuals: self.screen.blit(v.image, (v.rect.x - cx, v.rect.y))
+        for b in self.bullets: self.screen.blit(b.image, (b.rect.x - cx, b.rect.y))
+        for pw in self.powerups: self.screen.blit(pw.image, (pw.rect.x - cx, pw.rect.y))
         pygame.draw.rect(self.screen, BLACK, (LEVEL_WIDTH - 400 - cx, 100, 10, 440))
-        pygame.draw.polygon(self.screen, MARIO_RED, [(LEVEL_WIDTH - 400 - cx + 10, 100), (LEVEL_WIDTH - 300 - cx, 140), (LEVEL_WIDTH - 400 - cx + 10, 180)])
-        if not (self.player.is_dead and self.player.death_timer % 10 < 5):
-            self.screen.blit(self.player.image, (self.player.rect.x - cx, self.player.rect.y))
+        pygame.draw.polygon(self.screen, MARIO_RED, [(LEVEL_WIDTH-400-cx+10, 100), (LEVEL_WIDTH-300-cx, 140), (LEVEL_WIDTH-400-cx+10, 180)])
+        if not (self.player.is_dead and self.player.death_timer % 10 < 5): self.screen.blit(self.player.image, (self.player.rect.x - cx, self.player.rect.y))
         self.draw_ui(); pygame.display.flip()
 
     def draw_ui(self):
-        s_txt = self.font.render(f"SCORE: {self.player.score:06}", True, WHITE)
-        l_txt = self.font.render(f"LIVES: {self.player.lives}", True, WHITE)
-        self.screen.blit(s_txt, (30, 30)); self.screen.blit(l_txt, (SCREEN_WIDTH - 180, 30))
+        self.screen.blit(self.font.render(f"SCORE: {self.player.score:06}", True, WHITE), (30, 30))
+        self.screen.blit(self.font.render(f"LIVES: {self.player.lives}", True, WHITE), (SCREEN_WIDTH - 150, 30))
+        self.screen.blit(self.font.render(f"KILLS: {self.player.kills}", True, WHITE), (SCREEN_WIDTH - 150, 70))
+        if self.player.has_gun: self.screen.blit(self.font.render("GUN ACTIVE (CTRL TO SHOOT)", True, GOLD), (SCREEN_WIDTH//2-150, 30))
         if self.game_over: self.screen.blit(self.font.render("GAME OVER - PRESS R", True, WHITE), (SCREEN_WIDTH//2-140, 300))
         if self.won: self.screen.blit(self.font.render("YOU WIN! - PRESS R", True, WHITE), (SCREEN_WIDTH//2-120, 300))
 
@@ -420,8 +533,8 @@ class Game:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r: self.reset()
                     if event.key in [pygame.K_SPACE, pygame.K_w, pygame.K_UP]:
-                        if not self.player.is_dead and self.player.on_ground:
-                            self.player.vel_y = JUMP_FORCE; self.play_sound('jump')
+                        if not self.player.is_dead and self.player.on_ground: self.player.vel_y = JUMP_FORCE; self.play_sound('jump')
+                    if event.key in [pygame.K_LCTRL, pygame.K_RCTRL]: self.player.shoot(self)
             self.update(); self.draw()
 
 if __name__ == "__main__":
