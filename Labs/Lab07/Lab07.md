@@ -334,13 +334,22 @@ Run the full app (`python src/main.py`) and complete all four steps:
 **Paste the output of "View all destinations" (option [2]):**
 
 ```
-[Paste terminal output here]
+--- All Destinations ---
+1. Rome (Italy) - $5000.00
+   No notes added.
+2. Madrid (Spain) - $7000.00
+   No notes added.
+3. Newyork (USA) - $10000.00
+   Notes: Be careful of scammers
 ```
 
 **Paste the output of "Search by country" (option [3]):**
 
 ```
-[Paste terminal output here]
+Enter country to search for: spain
+
+--- Search Results for 'spain' ---
+- Madrid: $7000.00
 ```
 
 **Step 5 — Open `data/trips.json` in VS Code Explorer:**
