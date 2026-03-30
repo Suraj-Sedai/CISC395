@@ -1,6 +1,6 @@
 import os
 import json
-from dataclasses import asdict
+import dataclasses
 from src.models import Destination, TripCollection
 
 def load_trips() -> TripCollection:
@@ -11,18 +11,11 @@ def load_trips() -> TripCollection:
     collection = TripCollection()
     
     if os.path.exists(DATA_PATH):
-        try:
-            with open(DATA_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                for item in data:
-                    # Convert dict back to Destination object
-                    # asdict() will have name, country, budget, notes, date_added
-                    destination = Destination(**item)
-                    collection.add(destination)
-        except (json.JSONDecodeError, TypeError, KeyError):
-            # In case of corrupted file, return empty collection
-            pass
-            
+        with open(DATA_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            for d in data:
+                collection.add(Destination(**d))
+                
     return collection
 
 def save_trips(collection: TripCollection) -> None:
@@ -33,8 +26,8 @@ def save_trips(collection: TripCollection) -> None:
     # Create the data/ directory if it does not exist
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     
-    # Convert each Destination to dict
-    list_of_dicts = [asdict(d) for d in collection.get_all()]
+    # Convert each Destination to dict using dataclasses.asdict()
+    list_of_dicts = [dataclasses.asdict(d) for d in collection.get_all()]
     
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(list_of_dicts, f, indent=2)
