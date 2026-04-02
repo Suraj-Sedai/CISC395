@@ -462,13 +462,34 @@ Please read and follow the instructions in #file:trip_notes/prompts/Lab07_P2C_ra
 **Which template did you choose (or describe your custom feature):**
 
 ```
-[Template A / B / C / Custom: ...]
+[Template A / B / C / Custom: ...] 
+I used Template A
 ```
 
 **Terminal output showing the new feature working:**
 
 ```
 [Paste terminal output here]
+  Summary of Changes:
+   - src/models.py:
+       - Reordered fields in the Destination dataclass to ensure visited: bool = False follows non-default fields, fixing a TypeError.
+       - Added get_wishlist(self) to return destinations where visited is False.
+       - Added get_visited(self) to return destinations where visited is True.
+       - Added mark_visited(self, index: int) to set the visited status of a destination at a given index.
+   - src/main.py:
+       - Updated the menu to include [5] Mark as Visited and [6] Wishlist / Visited.
+       - Re-numbered the Quit option to [7].
+       - Implemented the logic for the new menu options, including numbered listing and count displays for wishlist and visited destinations.
+       - Updated [2] View all destinations to display a (Visited) tag where appropriate.
+
+
+
+       
+--- Wishlist (0) ---
+
+--- Visited (1) ---
+- Tokyo (Japan)
+
 ```
 
 **Git commit** — use format `feat: template-[A/B/C] [feature name]`:

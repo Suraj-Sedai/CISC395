@@ -17,7 +17,9 @@ def main():
         print("[2] View all destinations")
         print("[3] Search by country")
         print("[4] Add note to a destination")
-        print("[5] Quit")
+        print("[5] Mark as Visited")
+        print("[6] Wishlist / Visited")
+        print("[7] Quit")
         
         choice = input("Select an option: ").strip()
 
@@ -39,7 +41,8 @@ def main():
             else:
                 print("\n--- All Destinations ---")
                 for i, trip in enumerate(collection.get_all(), 1):
-                    print(f"{i}. {trip.name} ({trip.country}) - ${trip.budget:.2f}")
+                    visited_str = " (Visited)" if trip.visited else ""
+                    print(f"{i}. {trip.name} ({trip.country}) - ${trip.budget:.2f}{visited_str}")
                     if trip.notes:
                         print(f"   Notes: {', '.join(trip.notes)}")
                     else:
@@ -77,6 +80,39 @@ def main():
                     print("Please enter a valid number.")
 
         elif choice == "5":
+            if len(collection) == 0:
+                print("No trips saved yet.")
+            else:
+                print("\n--- Mark a destination as Visited ---")
+                for i, trip in enumerate(collection.get_all(), 1):
+                    status = " [Visited]" if trip.visited else ""
+                    print(f"{i}. {trip.name} ({trip.country}){status}")
+                
+                try:
+                    idx = int(input("Enter destination number: "))
+                    if 1 <= idx <= len(collection):
+                        trip = collection.get_by_index(idx - 1)
+                        collection.mark_visited(idx - 1)
+                        save_trips(collection)
+                        print(f"Marked {trip.name} as visited!")
+                    else:
+                        print("Invalid number.")
+                except ValueError:
+                    print("Please enter a valid number.")
+
+        elif choice == "6":
+            wishlist = collection.get_wishlist()
+            visited = collection.get_visited()
+            
+            print(f"\n--- Wishlist ({len(wishlist)}) ---")
+            for trip in wishlist:
+                print(f"- {trip.name} ({trip.country})")
+            
+            print(f"\n--- Visited ({len(visited)}) ---")
+            for trip in visited:
+                print(f"- {trip.name} ({trip.country})")
+
+        elif choice == "7":
             print("Goodbye!")
             break
 
