@@ -523,7 +523,8 @@ Pick one from the list below, or propose your own with instructor approval. Your
 
 **My app choice:**
 ```
-[App name / Custom description]
+[App name / Custom description] 
+Movie Watchlist
 ```
 
 ---
@@ -534,26 +535,32 @@ Apply the two-question framework before writing any code.
 
 **What does the app need to store?**
 ```
-Data class name: ___________
+Data class name: Movie
 Fields (name + type for each):
-  -
-  -
-  -
+  - title: str
+  - genre: str
+  - rating: float
+  - watched: bool = False
 ```
 
 **What does the app need to do?**
 ```
-Collection class name: ___________
+Collection class name: Watchlist
 Methods (name + one-line description for each):
-  -
-  -
-  -
+  - add(movie: Movie): Adds a movie to the watchlist.
+  - get_unwatched(): Returns a list of movies not yet watched.
+  - get_top_rated(n): Returns the top n movies sorted by rating.
+  - mark_watched(index): Marks a movie as watched in the list.
+  - get_random_unwatched(): Picks a random movie that hasn't been watched.
 
 Menu options:
-  [1]
-  [2]
-  [3]
-  [4] Quit
+  [1] Add movie
+  [2] View all movies
+  [3] View unwatched movies
+  [4] Mark movie as watched
+  [5] Get random recommendation
+  [6] View top rated
+  [7] Quit
 ```
 
 **Project folder and files:**
@@ -597,12 +604,85 @@ Create a folder named after your app (e.g., `flashcard_deck/`) inside your CISC3
 
 **Paste your `Lab07_P3_models.md` content:**
 ````
-[Paste your prompt file content here]
+I am building a Movie Watchlist CLI app.
+
+The project structure is:
+movie_watchlist/
+├── src/
+│   ├── models.py
+│   ├── storage.py
+│   └── main.py
+└── data/
+
+Create src/models.py with:
+
+1. Import dataclass and field from dataclasses.
+2. Define a Movie dataclass:
+   - title: str
+   - genre: str
+   - rating: float (0.0 to 10.0)
+   - watched: bool = False
+3. Define a Watchlist collection class:
+   - __init__(): initializes an empty list of movies in self._movies.
+   - add(movie: Movie): adds a movie to the list.
+   - get_all() -> list[Movie]: returns all movies.
+   - get_unwatched() -> list[Movie]: returns movies where watched == False.
+   - get_top_rated(n: int = 5) -> list[Movie]: returns the top n movies sorted by rating (highest first).
+   - mark_watched(index: int): sets self._movies[index].watched = True.
+   - get_random_unwatched() -> Movie: returns a random movie from the unwatched list (use random.choice). Handle empty list by returning None.
+   - __len__(): returns the number of movies.
+   - get_by_index(index: int): returns the movie at the given index.
+
+Do not add an if __name__ == "__main__" block.
+Write the file directly to src/models.py.
+
 ````
 
 **Paste your `Lab07_P3_main.md` content:**
 ````
-[Paste your prompt file content here]
+I am building a Movie Watchlist CLI app.
+
+The project structure is:
+movie_watchlist/
+├── src/
+│   ├── models.py
+│   ├── storage.py
+│   └── main.py
+└── data/
+
+Read src/models.py and src/storage.py first, then create src/main.py.
+
+src/main.py must:
+1. Fix the import path at the top so it works when run from the movie_watchlist/ root:
+       import sys, os
+       sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+2. Import Movie, Watchlist from src.models.
+   Import load_movies, save_movies from src.storage. (Assume storage.py exists and works like the one in trip_notes).
+
+3. On startup: watchlist = load_movies().
+
+4. Show this menu in a loop until the user quits:
+       === Movie Watchlist ===
+       [1] Add movie
+       [2] View all movies
+       [3] View unwatched movies
+       [4] Mark movie as watched
+       [5] Get random recommendation
+       [6] View top rated
+       [7] Quit
+
+5. Implement each option:
+   [1] Add movie: input title, genre, rating (float) -> Movie -> watchlist.add() -> save_movies()
+   [2] View all: list all movies with their status and rating.
+   [3] View unwatched: list only movies not yet watched.
+   [4] Mark as watched: show numbered list of unwatched, user picks one, update and save.
+   [5] Random recommendation: show one random unwatched movie.
+   [6] Top rated: show top 5 movies by rating.
+   [7] Quit: print "Goodbye!" and exit.
+
+Handle invalid inputs gracefully with print statements.
+Write the file directly to src/main.py.
 ````
 
 **Git commit:**
@@ -619,7 +699,7 @@ git push
 **What was the hardest part of writing the prompt files?** What did you have to be more specific about than you expected? (3–4 sentences)
 
 ```
-[Your answer]
+If prompt files are too vague, the model gives inconsistent answers. But if they are too detailed, the model can become overly rigid, repetitive, or fail in edge cases. So, the hardest part of writing prompt files is to balancing specificity with flexibility.
 ```
 
 **Compare your prompt files to the ones provided in Part 1** (look at `prompts/Lab07_Ex02_models.md`). What is one thing the Part 1 prompt does that you did not think to include? How might it affect the code the AI generates if that detail is missing? (2–3 sentences)
