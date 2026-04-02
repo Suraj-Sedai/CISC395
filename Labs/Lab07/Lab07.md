@@ -705,7 +705,7 @@ If prompt files are too vague, the model gives inconsistent answers. But if they
 **Compare your prompt files to the ones provided in Part 1** (look at `prompts/Lab07_Ex02_models.md`). What is one thing the Part 1 prompt does that you did not think to include? How might it affect the code the AI generates if that detail is missing? (2–3 sentences)
 
 ```
-[Your answer]
+I noticed that the Part 1 prompt included more specific implementation details, like only using the Python standard library and exactly how to set date_added. I did not think to include those details in my prompt, so the AI could generate code that still works but does not match the assignment requirements exactly.
 ```
 
 ---
@@ -719,7 +719,9 @@ Submit **two things** on Blackboard:
 
 **Paste your GitHub repository URL here:**
 ```
-https://github.com/[your-username]/CISC395
+https://github.com/Suraj-Sedai/CISC395
+https://github.com/Suraj-Sedai/CISC395/tree/main/Labs/Lab07 
+https://github.com/Suraj-Sedai/CISC395/tree/main/movie_watchlist/prompts
 ```
 
 Expected commits (in order):
