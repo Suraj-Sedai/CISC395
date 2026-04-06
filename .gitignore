@@ -36,4 +36,9 @@ pip-wheel-metadata/
 .DS_Store
 Thumbs.db
 
+<<<<<<< HEAD
 chroma_db/
+=======
+.env
+chroma_db/
+>>>>>>> c5e7f52c2d596dd2d17dc79ce47c17b045c1a1be
