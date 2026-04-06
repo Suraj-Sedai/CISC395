@@ -231,7 +231,7 @@ The AI reads `src/models.py` first, then writes `src/storage.py` directly.
 **Understanding check (required):** Your team decides next semester to switch from saving to a JSON file to saving to a real database. Which files in this project would need to change? Which files would stay exactly the same, and why?
 
 ```
-[Your answer]
+models.py
 ```
 
 **Run the test to see your progress** (Run Terminal):

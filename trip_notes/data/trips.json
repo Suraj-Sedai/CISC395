@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Tokyo",
+    "country": "Japan",
+    "budget": 4000.0,
+    "visited": true,
+    "notes": [],
+    "date_added": "2026-04-01"
+  }
+]
