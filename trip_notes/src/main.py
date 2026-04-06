@@ -13,13 +13,14 @@ def main():
 
     while True:
         print("\n=== Trip Notes ===")
+        print("\n-- Data --")
         print("[1] Add destination")
-        print("[2] View all destinations")
-        print("[3] Search by country")
-        print("[4] Add note to a destination")
-        print("[5] Mark as Visited")
-        print("[6] Wishlist / Visited")
-        print("[7] Quit")
+        print("[2] List all destinations")
+        print("[3] Mark as visited")
+        print("[4] Show statistics")
+        print("\n-- AI --")
+        print("(coming soon)")
+        print("\n[Q] Quit")
         
         choice = input("Select an option: ").strip()
 
@@ -112,7 +113,7 @@ def main():
             for trip in visited:
                 print(f"- {trip.name} ({trip.country})")
 
-        elif choice == "7":
+        elif choice.lower() == "q":
             print("Goodbye!")
             break
 
