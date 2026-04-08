@@ -5,6 +5,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.models import Destination, TripCollection
+from src.ai_assistant import ask, TRAVEL_SYSTEM_PROMPT
 from src.storage import load_trips, save_trips
 
 def main():
@@ -19,7 +20,7 @@ def main():
         print("[3] Mark as visited")
         print("[4] Show statistics")
         print("\n-- AI --")
-        print("(coming soon)")
+        print("[6] Ask AI a travel question")
         print("\n[Q] Quit")
         
         choice = input("Select an option: ").strip()
@@ -102,16 +103,34 @@ def main():
                     print("Please enter a valid number.")
 
         elif choice == "6":
-            wishlist = collection.get_wishlist()
-            visited = collection.get_visited()
-            
-            print(f"\n--- Wishlist ({len(wishlist)}) ---")
-            for trip in wishlist:
-                print(f"- {trip.name} ({trip.country})")
-            
-            print(f"\n--- Visited ({len(visited)}) ---")
-            for trip in visited:
-                print(f"- {trip.name} ({trip.country})")
+            question = input("Your question: ")
+            result = ask(question, system_prompt=TRAVEL_SYSTEM_PROMPT)
+
+            if result is None:
+                print("Could not get a response from the AI assistant.")
+                continue
+
+            print(result)
+
+            save_note = input("Save this as a note on a trip? (y/n): ").strip().lower()
+            if save_note == "y":
+                destinations = collection.get_all()
+                if not destinations:
+                    print("No trips saved yet.")
+                else:
+                    for i, trip in enumerate(destinations, 1):
+                        print(f"{i}. {trip.name} ({trip.country})")
+
+                    try:
+                        index = int(input("Trip number: ")) - 1
+                        if not 0 <= index < len(destinations):
+                            raise IndexError
+                        trip = collection.get_by_index(index)
+                        trip.add_note(result)
+                        save_trips(collection)
+                        print(f"Saved as a note on {trip.name}.")
+                    except (ValueError, IndexError):
+                        print("Invalid trip number.")
 
         elif choice.lower() == "q":
             print("Goodbye!")
