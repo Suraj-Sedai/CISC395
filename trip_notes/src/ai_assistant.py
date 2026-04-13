@@ -2,6 +2,7 @@ from dotenv import load_dotenv, find_dotenv
 import os
 import openai
 from openai import OpenAI
+from src.rag import search_guides
 
 load_dotenv(find_dotenv())
 
@@ -68,6 +69,27 @@ def ask(
     except Exception as e:
         print(f"Unexpected error: {type(e).__name__}: {e}")
         return None
+
+
+def rag_ask(question: str) -> str:
+    chunks = search_guides(question, n_results=3)
+
+    if not chunks:
+        return "No guides found. Add .txt, .md, or .pdf files to guides/ and press [R] to rebuild the index."
+
+    context = "\n\n---\n\n".join(chunks)
+
+    rag_system_prompt = f"""You are a travel assistant with access to the user's personal travel guides.
+Use the context below as your PRIMARY source. If the context contains relevant
+information, use it in your answer. If the context is insufficient, you may
+supplement with general knowledge but clearly indicate what comes from the guides
+and what is general advice. If the context has nothing relevant at all, say:
+I don't have specific guide information about that.
+
+Context from your travel guides:
+{context}"""
+
+    return ask(question, system_prompt=rag_system_prompt, max_tokens=2048)
 
 
 def generate_trip_briefing(city: str, country: str, notes: list = None) -> dict | None:

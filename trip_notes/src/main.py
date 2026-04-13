@@ -5,7 +5,8 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.models import Destination, TripCollection
-from src.ai_assistant import ask, TRAVEL_SYSTEM_PROMPT, generate_trip_briefing
+from src.ai_assistant import ask, TRAVEL_SYSTEM_PROMPT, generate_trip_briefing, rag_ask
+from src.rag import build_index
 from src.storage import load_trips, save_trips
 
 def main():
@@ -15,14 +16,13 @@ def main():
     while True:
         print("\n=== Trip Notes ===")
         print("\n-- Data --")
-        print("[1] Add destination")
-        print("[2] List all destinations")
-        print("[3] Mark as visited")
-        print("[4] Show statistics")
+        print("[1] Add destination       [2] List all destinations")
+        print("[3] Mark as visited       [4] Show statistics")
         print("\n-- AI --")
-        print("[6] Ask AI a travel question")
-        print("[7] Trip Briefing")
-        print("\n[Q] Quit")
+        print("[6] Ask AI                [7] Trip Briefing")
+        print("[8] Search my guides")
+        print("\n[R] Rebuild search index")
+        print("[Q] Quit")
         
         choice = input("Select an option: ").strip()
 
@@ -163,6 +163,16 @@ def main():
             print(f"\n--- {dest.name} Briefing ---")
             print(f"Overview:\n{result['overview']}")
             print(f"\nPacking List:\n{result['packing_list']}")
+
+        elif choice == "8":
+            question = input("Your question: ")
+            answer = rag_ask(question)
+            print(answer)
+
+        elif choice.lower() == "r":
+            print("Rebuilding index from guides/...")
+            build_index(force=True)
+            print("Done. Use [8] to search your updated guides.")
 
         elif choice.lower() == "q":
             print("Goodbye!")
