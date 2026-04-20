@@ -8,6 +8,7 @@ from src.models import Destination, TripCollection
 from src.ai_assistant import ask, TRAVEL_SYSTEM_PROMPT, generate_trip_briefing, rag_ask
 from src.rag import build_index
 from src.storage import load_trips, save_trips
+from src.tools import run_agent
 
 def main():
     # On startup: load existing trips
@@ -20,7 +21,7 @@ def main():
         print("[3] Mark as visited       [4] Show statistics")
         print("\n-- AI --")
         print("[6] Ask AI                [7] Trip Briefing")
-        print("[8] Search my guides")
+        print("[8] Search my guides      [10] AI Travel Agent")
         print("\n[R] Rebuild search index")
         print("[Q] Quit")
         
@@ -168,6 +169,38 @@ def main():
             question = input("Your question: ")
             answer = rag_ask(question)
             print(answer)
+
+        elif choice == "10":
+            print("The agent can calculate budgets, check real-time weather, and search your travel guides.")
+            question = input("Your question: ")
+            print("\nThinking...\n")
+            result = run_agent(question)
+
+            if result is None:
+                print("Could not get a response from the AI Travel Agent.")
+                continue
+
+            print("\nAgent answer:\n" + result)
+
+            save_note = input("Save this as a note on a trip? (y/n): ").strip().lower()
+            if save_note == "y":
+                destinations = collection.get_all()
+                if not destinations:
+                    print("No trips saved yet.")
+                else:
+                    for i, trip in enumerate(destinations, 1):
+                        print(f"{i}. {trip.name} ({trip.country})")
+
+                    try:
+                        index = int(input("Trip number: ")) - 1
+                        if not 0 <= index < len(destinations):
+                            raise IndexError
+                        trip = collection.get_by_index(index)
+                        trip.add_note(result)
+                        save_trips(collection)
+                        print(f"Saved as a note on {trip.name}.")
+                    except (ValueError, IndexError):
+                        print("Invalid trip number.")
 
         elif choice.lower() == "r":
             print("Rebuilding index from guides/...")
