@@ -3,8 +3,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 
-from src.ai_assistant import TRAVEL_SYSTEM_PROMPT, ask, client, MODEL
+from src.ai_assistant import TRAVEL_SYSTEM_PROMPT, ask, client, MODEL, rag_ask
 from src.storage import load_trips
+from src.rag import ensure_index
 
 
 st.set_page_config(page_title="Trip Notes AI", page_icon="✈️", layout="wide")
@@ -21,6 +22,9 @@ if "search_history" not in st.session_state:
 
 if "agent_history" not in st.session_state:
     st.session_state["agent_history"] = []
+
+
+ensure_index()
 
 
 trips = st.session_state["trips"]
@@ -108,7 +112,29 @@ with chat_tab:
         st.rerun()
 
 with search_tab:
-    st.info("Coming soon — Exercise 3")
+    st.subheader("Search My Guides")
+    st.caption("Answers grounded in your guides/ documents.")
+
+    for message in st.session_state["search_history"]:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if search_input := st.chat_input("Search your guides...", key="search_input"):
+        st.session_state["search_history"].append({"role": "user", "content": search_input})
+        with st.chat_message("user"):
+            st.markdown(search_input)
+
+        with st.spinner("Searching guides..."):
+            response = rag_ask(search_input)
+            with st.chat_message("assistant"):
+                st.markdown(response)
+            st.session_state["search_history"].append(
+                {"role": "assistant", "content": response}
+            )
+
+    if st.button("Clear search", key="clear_search"):
+        st.session_state["search_history"] = []
+        st.rerun()
 
 with agent_tab:
     st.info("Coming soon — Exercise 4")
